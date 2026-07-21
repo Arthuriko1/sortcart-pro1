@@ -100,7 +100,7 @@
 
 <header>
   <div class="logo">SortCart <em>Pro</em></div>
-  <span class="ver">v1.3</span>
+  <span class="ver">v1.4</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
@@ -205,9 +205,8 @@ let loadDest = null, lOk = 0, lWrong = 0;
 function saveCfg(){ try{ localStorage.setItem('sortcart_cfg', JSON.stringify(CFG)); }catch(e){} }
 
 async function sfetch(path, opts={}){
-  // Legacy anon keys (eyJ...) go in both headers; new sb_publishable_ keys go in apikey only
-  const base = { 'apikey': CFG.key, 'Content-Type': 'application/json' };
-  if(CFG.key.startsWith('eyJ')) base['Authorization'] = 'Bearer ' + CFG.key;
+  // Send key in both headers — Supabase accepts this for legacy eyJ AND new sb_publishable keys
+  const base = { 'apikey': CFG.key, 'Authorization': 'Bearer ' + CFG.key, 'Content-Type': 'application/json' };
   const headers = Object.assign(base, opts.headers||{});
   const root = CFG.url.trim().replace(/\/+$/,'').replace(/\/rest\/v1$/,'');
   const resp = await fetch(root + '/rest/v1/' + path, Object.assign({}, opts, {headers}));
@@ -614,8 +613,7 @@ $('testBtn').onclick = async () => {
   out.textContent = lines.join('\n') + '\n→ Contacting database…';
   // 2) live call
   try{
-    const headers = { 'apikey': key, 'Content-Type':'application/json' };
-    if(looksLegacy) headers['Authorization'] = 'Bearer ' + key;
+    const headers = { 'apikey': key, 'Authorization':'Bearer ' + key, 'Content-Type':'application/json' };
     const resp = await fetch(root + '/rest/v1/routes?select=name&limit=1', {headers});
     const body = await resp.text();
     if(resp.ok){
@@ -623,7 +621,7 @@ $('testBtn').onclick = async () => {
     } else if(resp.status === 404 && /routes/.test(body)){
       out.textContent = lines.join('\n') + '\n✗ Reached the database, but table \'routes\' is missing.\n   → You have not run the schema SQL yet. Supabase → SQL Editor → paste sortcart-schema.sql → Run.';
     } else if(resp.status === 401 || resp.status === 403){
-      out.textContent = lines.join('\n') + '\n✗ Auth rejected (' + resp.status + ').\n   → Wrong key, or you used the secret key. Use the anon / sb_publishable key.';
+      out.textContent = lines.join('\n') + '\n✗ Auth rejected (' + resp.status + ').\n   Most likely: this project has LEGACY keys disabled.\n   → In Supabase: Settings → API Keys → copy the \'Publishable key\' (sb_publishable_...) and use THAT here.\n   → Or on the same page, enable Legacy API keys to use the eyJ... key.';
     } else {
       out.textContent = lines.join('\n') + '\n✗ DB ' + resp.status + ': ' + body.slice(0,180);
     }
