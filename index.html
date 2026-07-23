@@ -7,7 +7,7 @@
 <title>SortCart Pro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&family=Atkinson+Hyperlegible+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>/* ZXing embedded — QR + 1D barcodes, works offline */
@@ -15,40 +15,55 @@
 </script>
 <style>
   :root{
-    --bg:#0E1116; --panel:#171C23; --panel2:#12161C; --line:#2A3038;
-    --text:#EDF1F5; --muted:#7E8896; --amber:#FFB020; --amber-deep:#E8940D;
-    --green:#34D399; --red:#FF5A4E; --blue:#3B9EFF;
-    --display:'Oswald',system-ui,sans-serif;
+    /* blackish theme across all screens */
+    --bg:#0B0D10; --panel:#15191F; --panel2:#0F1216; --line:#262C34;
+    --text:#EDF1F5; --muted:#8B95A2;
+    --signal:#C4F526; --signal-deep:#93C400; --signal-ink:#131A00;
+    --green:#2FE08A; --green-flood:#12A85E;
+    --red:#FF5A4E; --red-flood:#C81E14;
+    --blue:#4C9BFF;
+    --display:'Archivo',system-ui,sans-serif;
     --body:'Inter',system-ui,-apple-system,sans-serif;
-    --mono:'JetBrains Mono',ui-monospace,'Courier New',monospace;
-    --shadow:0 8px 30px rgba(0,0,0,.4);
+    --mono:'Atkinson Hyperlegible Mono',ui-monospace,'Courier New',monospace;
+    --shadow:0 6px 22px rgba(0,0,0,.45);
+    --tap:58px;
   }
+  /* Board keeps the same dark theme now — no separate mode needed */
+  body.board-dark{--bg:#0B0D10;}
+  body.board-dark .view{color:var(--text)}
+
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
   body{background:var(--bg);color:var(--text);font-family:var(--body);display:flex;flex-direction:column;overflow:hidden}
-  header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex:0 0 auto;background:linear-gradient(180deg,#171C23,#12161C)}
-  .logo{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:2.5px;text-transform:uppercase}
+  header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex:0 0 auto;background:var(--panel)}
+  .logo{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:.5px;text-transform:uppercase;color:var(--text)}
   .logo em{font-style:normal;color:var(--amber)}
   .spacer{flex:1}
-  .ver{font-family:var(--mono);font-size:9px;color:var(--amber);border:1px solid var(--amber);opacity:.55;padding:2px 6px;border-radius:4px;letter-spacing:.5px}
+  .ver{font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);padding:2px 6px;border-radius:4px;letter-spacing:.5px}
   .conn{font-family:var(--mono);font-size:10px;color:var(--muted)}
+  body.board-dark header{background:#12161C;border-color:#2A3038}
+  body.board-dark .logo,body.board-dark .conn{color:#EDF1F5}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block;margin-right:5px}
   .dot.on{background:var(--green)}
-  button{font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.6px;text-transform:uppercase;border:none;border-radius:11px;padding:13px 18px;cursor:pointer;background:linear-gradient(180deg,var(--amber),var(--amber-deep));color:#1A1204;box-shadow:0 2px 0 rgba(0,0,0,.25);transition:transform .08s}
-  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:600}
-  button.small{font-size:12px;padding:7px 11px}
+  button{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.4px;text-transform:uppercase;border:none;border-radius:12px;padding:15px 18px;min-height:var(--tap);cursor:pointer;background:var(--signal);color:var(--signal-ink);box-shadow:0 2px 0 var(--signal-deep);transition:transform .08s}
+  button.ghost{background:var(--panel);color:var(--text);border:1.5px solid var(--line);font-weight:600;box-shadow:none}
+  button.small{font-size:13px;padding:10px 13px;min-height:44px}
   button:disabled{opacity:.4;cursor:default}
   button:active{transform:translateY(1px)}
-  input,select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;color:var(--text);font-size:14px}
-  input:focus,select:focus{outline:2px solid var(--amber)}
+  input,select{background:var(--panel);border:1.5px solid var(--line);border-radius:11px;padding:14px 13px;color:var(--text);font-size:16px;min-height:var(--tap)}
+  input:focus,select:focus{outline:3px solid var(--signal);outline-offset:0}
   .hint{font-size:12px;color:var(--muted);line-height:1.5}
-  .tabs{display:flex;gap:6px;padding:10px 12px 0;flex:0 0 auto;overflow-x:auto;scrollbar-width:none}
-  .tabs button{flex:1;min-width:76px;font-size:12px;padding:11px 6px;letter-spacing:.4px}
-  .tabs button.inactive{background:var(--panel2);color:var(--muted);border:1px solid var(--line);box-shadow:none}
-  .view{flex:1;overflow-y:auto;display:none;padding:12px 14px 90px;-webkit-overflow-scrolling:touch}
+  .tabs{position:fixed;bottom:0;left:0;right:0;display:flex;gap:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line);z-index:40;box-shadow:0 -4px 16px rgba(20,26,32,.06)}
+  body.board-dark .tabs{background:#12161C;border-color:#2A3038}
+  .tabs button{flex:1;min-width:0;font-family:var(--body);font-weight:600;font-size:10.5px;letter-spacing:0;text-transform:none;padding:7px 2px;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:transparent;color:var(--muted);border:none;border-radius:10px;box-shadow:none}
+  .tabs button .ic{font-size:21px;line-height:1}
+  .tabs button.active-tab{color:var(--signal-deep);background:transparent}
+  body.board-dark .tabs button{color:#7E8896}
+  
+  .view{flex:1;overflow-y:auto;display:none;padding:14px 14px 84px;-webkit-overflow-scrolling:touch}
   .view.active{display:block}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
-  .panel h2{font-family:var(--display);font-weight:600;font-size:12.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);padding:11px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
+  .panel h2{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.8px;text-transform:uppercase;color:var(--text);padding:13px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
   .pbody{padding:14px}
   /* camera */
   .camwrap{position:relative;background:#000;height:130px;max-height:130px;border-radius:12px;overflow:hidden;transition:height .25s;margin-bottom:10px}
@@ -59,9 +74,15 @@
   .scanline{display:flex;gap:8px;margin-bottom:10px}
   .scanline input{flex:1;font-family:var(--mono);min-width:0}
   /* prompt */
-  .prompt{min-height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:12px;border:1px solid var(--line);border-radius:14px;background:radial-gradient(120% 140% at 50% 0%,#1B222B,#12161C);margin-bottom:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03),var(--shadow)}
-  .prompt .main{font-family:var(--display);font-weight:700;font-size:32px;letter-spacing:1.5px;line-height:1;text-transform:uppercase}
-  .prompt .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:5px;letter-spacing:.3px}
+  .prompt{min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;border:2px solid var(--line);border-radius:18px;background:var(--panel);margin-bottom:12px;box-shadow:var(--shadow);transition:background .15s,border-color .15s}
+  .prompt.flood-ok{background:var(--green-flood);border-color:var(--green-flood)}
+  .prompt.flood-bad{background:var(--red-flood);border-color:var(--red-flood)}
+  .prompt.flood-ok .main,.prompt.flood-ok .sub,.prompt.flood-bad .main,.prompt.flood-bad .sub{color:#fff}
+  .prompt.flood-bad{animation:shake .4s ease}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+  @media(prefers-reduced-motion:reduce){.prompt.flood-bad{animation:none}}
+  .prompt .main{font-family:var(--display);font-weight:800;font-size:38px;letter-spacing:.5px;line-height:1;text-transform:uppercase;color:var(--text)}
+  .prompt .sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:7px;letter-spacing:.2px}
   /* chips */
   .chips{display:flex;gap:8px;flex-wrap:wrap}
   .dchip{flex:1 1 30%;text-align:center;border:2px solid var(--line);border-radius:12px;padding:14px 6px;font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.5px;cursor:pointer;color:var(--muted);text-transform:uppercase;transition:transform .08s}
@@ -106,18 +127,18 @@
 
 <header>
   <div class="logo">SortCart <em>Pro</em></div>
-  <span class="ver">v2.1</span>
+  <span class="ver">v3.1</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
 
-<div class="tabs">
-  <button id="tabDash" class="inactive">📊 Board</button>
-  <button id="tabRecv" class="inactive">📦 Receive</button>
-  <button id="tabLoad" class="inactive">🚚 Load</button>
-  <button id="tabAdmin" class="inactive">⚙️ Admin</button>
-  <button id="tabSetup">🔌 Setup</button>
-</div>
+<nav class="tabs">
+  <button id="tabRecv"><span class="ic">📦</span>Receive</button>
+  <button id="tabLoad"><span class="ic">🚚</span>Load</button>
+  <button id="tabDash"><span class="ic">📊</span>Board</button>
+  <button id="tabAdmin"><span class="ic">⚙️</span>Admin</button>
+  <button id="tabSetup" class="active-tab"><span class="ic">🔌</span>Setup</button>
+</nav>
 
 <!-- SETUP -->
 <div class="view active" id="viewSetup">
@@ -312,16 +333,18 @@ function routeColor(name){ const r = routes.find(r=>r.name===name); return r ? r
 
 /* ================= tabs ================= */
 const TABS = {dash:'viewDash', recv:'viewRecv', load:'viewLoad', admin:'viewAdmin', setup:'viewSetup'};
+const TABID = {dash:'tabDash',recv:'tabRecv',load:'tabLoad',admin:'tabAdmin',setup:'tabSetup'};
 function setTab(m){
   mode = m;
   Object.entries(TABS).forEach(([k,v]) => $(v).classList.toggle('active', k===m));
-  ['tabDash','tabRecv','tabLoad','tabAdmin','tabSetup'].forEach(id => $(id).classList.add('inactive'));
-  ({dash:'tabDash',recv:'tabRecv',load:'tabLoad',admin:'tabAdmin',setup:'tabSetup'})[m] &&
-    $({dash:'tabDash',recv:'tabRecv',load:'tabLoad',admin:'tabAdmin',setup:'tabSetup'}[m]).classList.remove('inactive');
+  Object.values(TABID).forEach(id => $(id).classList.remove('active-tab'));
+  if(TABID[m]) $(TABID[m]).classList.add('active-tab');
+  // Board uses the dark office theme; all other screens are light hi-vis
+  document.body.classList.toggle('board-dark', m==='dash');
 }
 $('tabDash').onclick = ()=>setTab('dash');
-$('tabRecv').onclick = ()=>setTab('recv');
-$('tabLoad').onclick = ()=>{ setTab('load'); renderLoadChips(); };
+$('tabRecv').onclick = ()=>{ setTab('recv'); setTimeout(()=>{ try{$('manual').focus();}catch(e){} }, 60); };
+$('tabLoad').onclick = ()=>{ setTab('load'); renderLoadChips(); setTimeout(()=>{ try{$('manualL').focus();}catch(e){} }, 60); };
 $('tabAdmin').onclick = ()=>setTab('admin');
 $('tabSetup').onclick = ()=>setTab('setup');
 
@@ -442,7 +465,7 @@ async function receiveScan(code){
   const s = ships.find(x=>x.barcode===code);
   if(!s){
     beep(false); buzz([80,60,80]); yell('Unknown box');
-    setPrompt('prompt','UNKNOWN BOX', code + ' not in manifest — exceptions pile','var(--red)');
+    setPrompt('prompt','UNKNOWN BOX', code + ' not in manifest — exceptions pile','var(--red)','bad');
     logEvent('unknown_scan', code, null, 'receive');
     return;
   }
@@ -456,7 +479,7 @@ async function receiveScan(code){
   syncFromDB();
   beep(true); buzz(50);
   yell(s.route_name);
-  setPrompt('prompt', s.route_name, s.barcode + ' received', routeColor(s.route_name));
+  setPrompt('prompt', s.route_name, s.barcode + ' received', routeColor(s.route_name), 'ok');
   toast(s.route_name, s.barcode + ' ✓ received', routeColor(s.route_name));
   logEvent('received', code, s.route_name, '');
   pushDB();
@@ -480,7 +503,7 @@ async function loadScan(code){
   const s = ships.find(x=>x.barcode===code);
   if(!s){
     beep(false); buzz([80,60,80]); yell('Unknown box. Do not load');
-    setPrompt('loadPrompt','UNKNOWN BOX', code + ' — hold aside','var(--red)');
+    setPrompt('loadPrompt','UNKNOWN BOX', code + ' — hold aside','var(--red)','bad');
     logEvent('unknown_scan', code, loadDest, 'load'); return;
   }
   if(s.route_name === loadDest){
@@ -489,20 +512,27 @@ async function loadScan(code){
     if(rec){ rec.status='loaded'; rec.loaded_at=new Date().toISOString(); }
     syncFromDB(); updLeft();
     beep(true); buzz(50);
-    setPrompt('loadPrompt','✓ '+s.barcode, lOk + ' loaded to ' + loadDest, routeColor(loadDest));
+    setPrompt('loadPrompt','✓ '+s.barcode, lOk + ' loaded to ' + loadDest, routeColor(loadDest), 'ok');
     logEvent('loaded_ok', code, loadDest, '');
     pushDB();
   } else {
     lWrong++; $('lWrong').textContent = lWrong;
     beep(false); buzz([160,80,160,80,160]);
     yell('Stop! Wrong truck! This box goes to ' + s.route_name);
-    setPrompt('loadPrompt','STOP — WRONG TRUCK', s.barcode + ' → ' + s.route_name, '#FF5A4E');
+    setPrompt('loadPrompt','STOP — WRONG TRUCK', s.barcode + ' → ' + s.route_name, '#fff', 'bad');
     toast('WRONG TRUCK', s.barcode + ' → ' + s.route_name, '#FF5A4E');
     logEvent('wrong_truck_caught', code, loadDest, 'belongs to ' + s.route_name);
   }
 }
-function setPrompt(id, main, sub, color){
-  $(id).innerHTML = `<div class="main" style="color:${color}">${main}</div><div class="sub">${sub}</div>`;
+function setPrompt(id, main, sub, color, flood){
+  const el = $(id);
+  el.classList.remove('flood-ok','flood-bad');
+  el.innerHTML = `<div class="main" style="color:${color}">${main}</div><div class="sub">${sub}</div>`;
+  if(flood==='ok' || flood==='bad'){
+    void el.offsetWidth;
+    el.classList.add(flood==='ok'?'flood-ok':'flood-bad');
+    clearTimeout(el._ft); el._ft = setTimeout(()=>el.classList.remove('flood-ok','flood-bad'), 1400);
+  }
 }
 
 /* manual inputs */
