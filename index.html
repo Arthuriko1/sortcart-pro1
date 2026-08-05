@@ -135,7 +135,7 @@
 
 <header>
   <div class="logo">SortCart <em>Pro</em></div>
-  <span class="ver">v3.2 · app</span>
+  <span class="ver">v3.3 · ai</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
@@ -186,6 +186,9 @@
     <div class="camoff" id="camOff"><button id="startCam" class="small">Start camera</button></div>
   </div>
   <div class="scanline"><input id="manual" placeholder="Gun / type barcode" autocomplete="off"><button class="ghost" id="manualGo">Go</button></div>
+  <div class="scanline"><button class="ghost" id="aiReadBtn" style="flex:1">📷 Read label with AI (region · city · address)</button></div>
+  <input type="file" id="aiFile" accept="image/*" capture="environment" style="display:none">
+  <div class="panel" id="aiResult" style="display:none"><h2>AI label reading</h2><div class="cardbody" id="aiOut" style="padding:14px;font-family:var(--mono);font-size:12.5px;line-height:1.7"></div></div>
   <div class="prompt" id="prompt"><div class="main" style="color:var(--muted)">RECEIVE MODE</div><div class="sub">scan each box as it comes off the pallet</div></div>
   <div class="panel"><h2>Pallet shortage check</h2>
     <div class="pbody" style="display:flex;flex-direction:column;gap:8px">
@@ -700,6 +703,97 @@ document.addEventListener('visibilitychange', () => {
   if(document.visibilityState==='visible' && scanning && 'wakeLock' in navigator)
     navigator.wakeLock.request('screen').catch(()=>{});
 });
+
+/* ================= AI label reader ================= */
+$('aiReadBtn').onclick = () => $('aiFile').click();
+$('aiFile').addEventListener('change', async e => {
+  if(e.target.files[0]) await readLabel(e.target.files[0]);
+  e.target.value='';
+});
+function _downscale(file, maxDim){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{ const s=Math.min(1,maxDim/Math.max(img.width,img.height));
+      const c=document.createElement('canvas'); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      resolve(c.toDataURL('image/jpeg',0.9).split(',')[1]); };
+    img.onerror=reject; img.src=URL.createObjectURL(file);
+  });
+}
+async function readLabel(file){
+  $('aiResult').style.display='block';
+  $('aiOut').innerHTML='Reading label…';
+  const prompt = `You are the AI clerk of a warehouse sorting system in Israel, reading a LionWheel shipping label (Hebrew). The image may be rotated or upside-down — read it anyway.
+Extract these fields (Hebrew labels shown): 
+- barcode (the long digits under the barcode, e.g. 26360183)
+- scan_code (the letter/number code above the barcode, e.g. 4BJH73QGJB)
+- order_id (מספר הזמנה)
+- region (אזור חלוקה — the delivery region/zone, e.g. "אזור מרכז")
+- city (עיר)
+- address (כתובת)
+- customer (שם מקבל / שם לקוח)
+- location (מיקום)
+Respond ONLY with a compact JSON object, no markdown, no extra text:
+{"barcode":"","scan_code":"","order_id":"","region":"","city":"","address":"","customer":"","location":""}
+Use empty string for anything you cannot read. Keep every value short.`;
+  try{
+    const b64 = await _downscale(file, 1500);
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:600,
+        messages:[{role:"user", content:[
+          {type:"image", source:{type:"base64", media_type:"image/jpeg", data:b64}},
+          {type:"text", text:prompt}
+        ]}] })
+    });
+    const data = await resp.json();
+    if(data.error) throw new Error(data.error.message||'API error');
+    const txt = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+    const r = JSON.parse(txt.replace(/```json|```/g,'').trim());
+    // pick the routing value: prefer region, else city
+    const routeGuess = (r.region || r.city || '').trim().toUpperCase();
+    const bc = (r.barcode || r.scan_code || '').trim().toUpperCase();
+    const rows = [
+      ['אזור חלוקה / Region', r.region], ['עיר / City', r.city],
+      ['כתובת / Address', r.address], ['שם לקוח / Customer', r.customer],
+      ['מיקום / Location', r.location], ['מס׳ הזמנה / Order', r.order_id],
+      ['Barcode', r.barcode], ['Scan code', r.scan_code]
+    ].filter(([k,v])=>v);
+    let html = rows.map(([k,v])=>`<div><span style="color:var(--muted)">${k}:</span> <b>${v}</b></div>`).join('');
+    // does this barcode already exist?
+    const existing = bc && (DB.shipments||[]).find(s=>s.barcode===bc || s.barcode===(r.scan_code||'').toUpperCase());
+    if(existing){
+      html += `<div style="margin-top:10px;color:var(--green)">✓ Matches shipment ${existing.barcode} → ${existing.route_name}. Scanning it will receive it.</div>`;
+      yell(existing.route_name); beep(true);
+    } else if(bc && routeGuess){
+      html += `<div style="margin-top:10px;color:var(--signal)">Not in manifest yet.</div>`;
+      html += `<button id="aiCreate" style="margin-top:8px;width:100%">Add to manifest: ${bc} → ${routeGuess}</button>`;
+      yell(routeGuess); beep(true);
+    } else {
+      html += `<div style="margin-top:10px;color:var(--red)">Could not read enough to sort. Try a clearer photo.</div>`;
+      beep(false);
+    }
+    $('aiOut').innerHTML = html;
+    if(bc && routeGuess && !existing){
+      $('aiCreate').onclick = () => {
+        // auto-create the route if new, then the shipment
+        if(!(DB.routes||[]).some(x=>x.name===routeGuess)){
+          const pal=['#FFB020','#4C9BFF','#2FE08A','#C084FC','#FF6B57','#4DD4C0','#F472B6','#A3E635'];
+          DB.routes=DB.routes||[]; DB.routes.push({name:routeGuess,color:pal[DB.routes.length%pal.length],position:DB.routes.length+1});
+        }
+        DB.shipments=DB.shipments||[];
+        DB.shipments.push({barcode:bc, route_name:routeGuess, order_ref:r.order_id||'', kg:null, status:'pending',
+          created_at:new Date().toISOString(), meta:{city:r.city,address:r.address,customer:r.customer,region:r.region,location:r.location}});
+        logEvent('label_added', bc, routeGuess, 'AI label read');
+        syncFromDB(); pushDB();
+        toast('ADDED', bc + ' → ' + routeGuess, routeColor(routeGuess));
+        $('aiOut').innerHTML += '<div style="margin-top:8px;color:var(--green)">✓ Added. Now scan the box to receive it.</div>';
+      };
+    }
+  }catch(err){
+    $('aiOut').innerHTML = '<span style="color:var(--red)">Error: '+(err.message||err)+'</span><br><span style="color:var(--muted)">The AI reader needs internet and works inside claude.ai / a connected backend. On the hosted site it will work once the backend relay is added.</span>';
+  }
+}
 
 /* ================= demo data + box labels ================= */
 const DEMO = [
