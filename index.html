@@ -135,7 +135,7 @@
 
 <header>
   <div class="logo">SortCart <em>Pro</em></div>
-  <span class="ver">v3.3 · ai</span>
+  <span class="ver">v3.4 · backend</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
@@ -155,6 +155,7 @@
       <input id="binId" placeholder="Bin ID">
       <input id="binKey" placeholder="X-Master-Key">
       <input id="devName" placeholder="Device name (e.g. phone-1, computer)">
+      <input id="backendUrl" placeholder="Backend URL (optional — for AI on hosted site)">
       <button id="connectBtn">Connect</button>
       <div class="hint" id="testOut" style="margin-top:8px;white-space:pre-line"></div>
       <p class="hint"><b>One-time setup (5 min, no key maze):</b><br>
@@ -254,7 +255,7 @@
 <script>
 /* ================= config / connection (JSONBin — no key maze) ================= */
 const $ = id => document.getElementById(id);
-let CFG = { binId:'', binKey:'', device:'phone-1' };
+let CFG = { binId:'', binKey:'', device:'phone-1', backend:'' };
 try{ const s = localStorage.getItem('sortcart_cfg2'); if(s) CFG = JSON.parse(s); }catch(e){}
 let connected = false;
 let routes = [];
@@ -360,10 +361,11 @@ $('tabAdmin').onclick = ()=>setTab('admin');
 $('tabSetup').onclick = ()=>setTab('setup');
 
 /* ================= connect + sync ================= */
-$('binId').value = CFG.binId; $('binKey').value = CFG.binKey; $('devName').value = CFG.device;
+$('binId').value = CFG.binId; $('binKey').value = CFG.binKey; $('devName').value = CFG.device; $('backendUrl').value = CFG.backend||'';
 $('connectBtn').onclick = async () => {
   CFG.binId = $('binId').value.trim(); CFG.binKey = $('binKey').value.trim();
   CFG.device = $('devName').value.trim() || 'phone-1';
+  CFG.backend = ($('backendUrl').value||'').trim().replace(/\/$/,'');
   if(!CFG.binId || !CFG.binKey){ $('testOut').textContent = '✗ Fill in both Bin ID and Master Key.'; return; }
   saveCfg();
   $('connLbl').textContent = 'CONNECTING…';
@@ -738,18 +740,30 @@ Respond ONLY with a compact JSON object, no markdown, no extra text:
 Use empty string for anything you cannot read. Keep every value short.`;
   try{
     const b64 = await _downscale(file, 1500);
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:600,
-        messages:[{role:"user", content:[
-          {type:"image", source:{type:"base64", media_type:"image/jpeg", data:b64}},
-          {type:"text", text:prompt}
-        ]}] })
-    });
-    const data = await resp.json();
-    if(data.error) throw new Error(data.error.message||'API error');
-    const txt = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
-    const r = JSON.parse(txt.replace(/```json|```/g,'').trim());
+    let r;
+    if(CFG.backend){
+      // Secure path: our backend holds the AI key
+      const resp = await fetch(CFG.backend + '/api/read-label', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ imageBase64: b64 })
+      });
+      r = await resp.json();
+      if(r.error) throw new Error(r.error);
+    } else {
+      // Direct path: works only inside claude.ai preview
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:600,
+          messages:[{role:"user", content:[
+            {type:"image", source:{type:"base64", media_type:"image/jpeg", data:b64}},
+            {type:"text", text:prompt}
+          ]}] })
+      });
+      const data = await resp.json();
+      if(data.error) throw new Error(data.error.message||'API error');
+      const txt = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+      r = JSON.parse(txt.replace(/```json|```/g,'').trim());
+    }
     // pick the routing value: prefer region, else city
     const routeGuess = (r.region || r.city || '').trim().toUpperCase();
     const bc = (r.barcode || r.scan_code || '').trim().toUpperCase();
