@@ -76,6 +76,10 @@
   /* camera */
   .camwrap{position:relative;background:#000;height:52vh;max-height:560px;min-height:300px;border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
   .camwrap.big{height:70vh}
+  .camctl{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:4}
+  .camctl button{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:22px;padding:8px 14px;font-size:13px;font-weight:700;min-height:40px}
+  .camctl button.on{background:var(--signal);color:var(--signal-ink);border-color:var(--signal)}
+  .zoomlbl{color:#fff;font-family:var(--mono);font-size:12px;align-self:center;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:20px}
   /* viewfinder */
   .viewfinder{position:absolute;inset:0;pointer-events:none;z-index:2}
   .vf-frame{position:absolute;left:12%;right:12%;top:26%;bottom:26%}
@@ -153,7 +157,7 @@
 
 <header>
   <div class="logo">SortCart <em>Pro</em></div>
-  <span class="ver">v3.6 · scanner</span>
+  <span class="ver">v3.8 · loadcam</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
@@ -200,6 +204,7 @@
 
 <!-- RECEIVE -->
 <div class="view" id="viewRecv">
+  <div id="recvCamSlot"></div>
   <div class="camwrap" id="camwrap"><video id="video" playsinline muted autoplay></video>
     <div class="viewfinder" id="viewfinder" style="display:none">
       <div class="vf-mask"></div>
@@ -211,6 +216,12 @@
       <div class="vf-hint">point the box label inside the frame</div>
     </div>
     <div class="decoderchip" id="decChip"></div>
+    <div class="camctl" id="camctl" style="display:none">
+      <button id="torchBtn">🔦 Light</button>
+      <button id="zoomOut">–</button>
+      <span class="zoomlbl" id="zoomLbl">1.0×</span>
+      <button id="zoomIn">+</button>
+    </div>
     <div class="camoff" id="camOff"><button id="startCam">Start camera</button></div>
   </div>
   <div class="scanline"><input id="manual" placeholder="Gun / type barcode" autocomplete="off"><button class="ghost" id="manualGo">Go</button></div>
@@ -232,8 +243,9 @@
     <div class="stat"><b id="lWrong" style="color:var(--red)">0</b><span>Wrong caught</span></div>
     <div class="stat"><b id="lLeft">–</b><span>Left for route</span></div>
   </div>
+  <div id="loadCamSlot"></div>
   <div class="scanline"><input id="manualL" placeholder="Gun / type barcode" autocomplete="off"><button class="ghost" id="manualLGo">Go</button></div>
-  <p class="hint">Camera scanning works here too — keep the Receive tab's camera running and switch tabs; scans are routed to whichever mode is open.</p>
+  <p class="hint">The camera works here too — scans go to the selected truck.</p>
 </div>
 
 <!-- ADMIN -->
@@ -365,9 +377,16 @@ function routeColor(name){ const r = routes.find(r=>r.name===name); return r ? r
 /* ================= tabs ================= */
 const TABS = {dash:'viewDash', recv:'viewRecv', load:'viewLoad', admin:'viewAdmin', setup:'viewSetup'};
 const TABID = {dash:'tabDash',recv:'tabRecv',load:'tabLoad',admin:'tabAdmin',setup:'tabSetup'};
+function moveCamera(m){
+  const cam = document.getElementById('camwrap'); if(!cam) return;
+  if(m==='recv'){ const s=document.getElementById('recvCamSlot'); if(s) s.appendChild(cam); cam.style.display=''; }
+  else if(m==='load'){ const s=document.getElementById('loadCamSlot'); if(s) s.appendChild(cam); cam.style.display=''; }
+  else { cam.style.display='none'; }
+}
 function setTab(m){
   mode = m;
   Object.entries(TABS).forEach(([k,v]) => $(v).classList.toggle('active', k===m));
+  moveCamera(m);
   Object.values(TABID).forEach(id => $(id).classList.remove('active-tab'));
   if(TABID[m]) $(TABID[m]).classList.add('active-tab');
   // Board uses the dark office theme; all other screens are light hi-vis
@@ -681,9 +700,11 @@ $('video').addEventListener('click', () => $('video').parentElement.classList.to
 $('startCam').onclick = async () => {
   try{
     const stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }, audio:false });
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080},
+        focusMode:'continuous', advanced:[{focusMode:'continuous'}] }, audio:false });
     const v = $('video'); v.srcObject = stream; await v.play();
     $('camOff').style.display='none'; { const vf=document.getElementById('viewfinder'); if(vf) vf.style.display='block'; }
+    setupCamControls(stream);
     try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(e){}
     if(hasDetector){ detector = new BarcodeDetector({formats:['qr_code','code_128','ean_13','ean_8','code_39','upc_a','itf']}); $('decChip').textContent='NATIVE (QR+1D)'; }
     else if(hasZXing){ $('decChip').textContent='ZXing (QR+1D)'; }
@@ -692,6 +713,51 @@ $('startCam').onclick = async () => {
     scanning = true; scanLoop();
   }catch(err){ alert('Camera error: ' + err.message); }
 };
+let camTrack=null, camZoom=1, camZoomMin=1, camZoomMax=1, camZoomStep=0.1, torchOn=false;
+function setupCamControls(stream){
+  camTrack = stream.getVideoTracks()[0];
+  const caps = camTrack.getCapabilities ? camTrack.getCapabilities() : {};
+  const ctl = document.getElementById('camctl');
+  let anyCtl = false;
+  // zoom
+  if(caps.zoom){
+    camZoomMin = caps.zoom.min||1; camZoomMax = caps.zoom.max||1; camZoomStep = caps.zoom.step||0.1;
+    camZoom = camTrack.getSettings().zoom || camZoomMin;
+    document.getElementById('zoomIn').style.display='';
+    document.getElementById('zoomOut').style.display='';
+    document.getElementById('zoomLbl').style.display='';
+    updZoomLbl(); anyCtl = true;
+  } else {
+    document.getElementById('zoomIn').style.display='none';
+    document.getElementById('zoomOut').style.display='none';
+    document.getElementById('zoomLbl').style.display='none';
+  }
+  // torch
+  if(caps.torch){ document.getElementById('torchBtn').style.display=''; anyCtl=true; }
+  else document.getElementById('torchBtn').style.display='none';
+  ctl.style.display = anyCtl ? 'flex' : 'none';
+}
+function updZoomLbl(){ const l=document.getElementById('zoomLbl'); if(l) l.textContent = camZoom.toFixed(1)+'×'; }
+async function applyZoom(z){
+  if(!camTrack) return;
+  camZoom = Math.max(camZoomMin, Math.min(camZoomMax, z));
+  try{ await camTrack.applyConstraints({ advanced:[{ zoom: camZoom }] }); updZoomLbl(); }catch(e){}
+}
+document.getElementById('zoomIn').onclick = () => applyZoom(camZoom + Math.max(camZoomStep, (camZoomMax-camZoomMin)/10));
+document.getElementById('zoomOut').onclick = () => applyZoom(camZoom - Math.max(camZoomStep, (camZoomMax-camZoomMin)/10));
+document.getElementById('torchBtn').onclick = async () => {
+  if(!camTrack) return;
+  torchOn = !torchOn;
+  try{ await camTrack.applyConstraints({ advanced:[{ torch: torchOn }] });
+    document.getElementById('torchBtn').classList.toggle('on', torchOn);
+  }catch(e){}
+};
+// tap-to-focus: tapping the video (not toggling size) attempts a focus pulse
+$('video').addEventListener('dblclick', async () => {
+  if(!camTrack) return;
+  try{ await camTrack.applyConstraints({ advanced:[{ focusMode:'continuous' }] }); }catch(e){}
+});
+
 const cv = document.createElement('canvas');
 const cctx = cv.getContext('2d', { willReadFrequently:true });
 let zxReader=null, zxHints=null;
@@ -712,7 +778,7 @@ async function scanLoop(){
           for(const c of codes) handleScan(c.rawValue);
         } else if(hasZXing){
           zxInit();
-          const w=800, hh=Math.round(800*v.videoHeight/v.videoWidth)||600;
+          const w=1280, hh=Math.round(1280*v.videoHeight/v.videoWidth)||960;
           cv.width=w; cv.height=hh; cctx.drawImage(v,0,0,w,hh);
           try{
             const src = new ZXing.HTMLCanvasElementLuminanceSource(cv);
