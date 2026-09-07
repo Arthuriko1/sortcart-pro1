@@ -74,8 +74,26 @@
   .panel h2{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.8px;text-transform:uppercase;color:var(--text);padding:13px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
   .pbody{padding:14px}
   /* camera */
-  .camwrap{position:relative;background:#000;height:130px;max-height:130px;border-radius:12px;overflow:hidden;transition:height .25s;margin-bottom:10px}
-  .camwrap.big{height:320px;max-height:320px}
+  .camwrap{position:relative;background:#000;height:52vh;max-height:560px;min-height:300px;border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
+  .camwrap.big{height:70vh}
+  /* viewfinder */
+  .viewfinder{position:absolute;inset:0;pointer-events:none;z-index:2}
+  .vf-frame{position:absolute;left:12%;right:12%;top:26%;bottom:26%}
+  .vf-corner{position:absolute;width:34px;height:34px;border:4px solid var(--signal);filter:drop-shadow(0 0 6px rgba(196,245,38,.6))}
+  .vf-corner.tl{top:0;left:0;border-right:none;border-bottom:none;border-radius:8px 0 0 0}
+  .vf-corner.tr{top:0;right:0;border-left:none;border-bottom:none;border-radius:0 8px 0 0}
+  .vf-corner.bl{bottom:0;left:0;border-right:none;border-top:none;border-radius:0 0 0 8px}
+  .vf-corner.br{bottom:0;right:0;border-left:none;border-top:none;border-radius:0 0 8px 0}
+  .vf-line{position:absolute;left:2px;right:2px;height:3px;background:linear-gradient(90deg,transparent,var(--signal),transparent);box-shadow:0 0 12px var(--signal);animation:sweep 2.2s ease-in-out infinite}
+  @keyframes sweep{0%{top:2%}50%{top:96%}100%{top:2%}}
+  .vf-hint{position:absolute;left:0;right:0;bottom:9%;text-align:center;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.8);letter-spacing:.5px}
+  /* dim outside the frame a touch */
+  .vf-mask{position:absolute;inset:0;background:radial-gradient(ellipse 60% 42% at 50% 50%,transparent 60%,rgba(0,0,0,.35) 100%)}
+  /* success pulse flash over the camera */
+  .camwrap.hit::after{content:'';position:absolute;inset:0;background:var(--green);opacity:.0;z-index:3;animation:hitflash .5s ease}
+  .camwrap.miss::after{content:'';position:absolute;inset:0;background:var(--red);opacity:.0;z-index:3;animation:hitflash .5s ease}
+  @keyframes hitflash{0%{opacity:.55}100%{opacity:0}}
+  @media(prefers-reduced-motion:reduce){.vf-line{animation:none;top:49%}.camwrap.hit::after,.camwrap.miss::after{animation:none}}
   video{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
   .camoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--panel2)}
   .decoderchip{position:absolute;top:6px;left:6px;font-family:var(--mono);font-size:9px;background:rgba(0,0,0,.55);color:var(--green);padding:3px 7px;border-radius:5px;display:none}
@@ -135,7 +153,7 @@
 
 <header>
   <div class="logo">SortCart <em>Pro</em></div>
-  <span class="ver">v3.4 · backend</span>
+  <span class="ver">v3.6 · scanner</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
@@ -182,25 +200,26 @@
 
 <!-- RECEIVE -->
 <div class="view" id="viewRecv">
-  <div class="camwrap"><video id="video" playsinline muted autoplay></video>
+  <div class="camwrap" id="camwrap"><video id="video" playsinline muted autoplay></video>
+    <div class="viewfinder" id="viewfinder" style="display:none">
+      <div class="vf-mask"></div>
+      <div class="vf-frame">
+        <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
+        <div class="vf-corner bl"></div><div class="vf-corner br"></div>
+        <div class="vf-line"></div>
+      </div>
+      <div class="vf-hint">point the box label inside the frame</div>
+    </div>
     <div class="decoderchip" id="decChip"></div>
-    <div class="camoff" id="camOff"><button id="startCam" class="small">Start camera</button></div>
+    <div class="camoff" id="camOff"><button id="startCam">Start camera</button></div>
   </div>
   <div class="scanline"><input id="manual" placeholder="Gun / type barcode" autocomplete="off"><button class="ghost" id="manualGo">Go</button></div>
   <div class="scanline"><button class="ghost" id="aiReadBtn" style="flex:1">📷 Read label with AI (region · city · address)</button></div>
+  <div class="scanline"><button class="ghost" id="aiNumBtn" style="flex:1">✍️ Read handwritten number → find in LionWheel</button></div>
   <input type="file" id="aiFile" accept="image/*" capture="environment" style="display:none">
+  <input type="file" id="aiNumFile" accept="image/*" capture="environment" style="display:none">
   <div class="panel" id="aiResult" style="display:none"><h2>AI label reading</h2><div class="cardbody" id="aiOut" style="padding:14px;font-family:var(--mono);font-size:12.5px;line-height:1.7"></div></div>
   <div class="prompt" id="prompt"><div class="main" style="color:var(--muted)">RECEIVE MODE</div><div class="sub">scan each box as it comes off the pallet</div></div>
-  <div class="panel"><h2>Pallet shortage check</h2>
-    <div class="pbody" style="display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;gap:8px;align-items:center">
-        <span class="hint" style="flex:1">Manifest says this pallet should have:</span>
-        <input id="expectCount" type="number" inputmode="numeric" placeholder="e.g. 60" style="width:90px;text-align:center">
-      </div>
-      <button class="ghost small" id="checkShortage">Close pallet &amp; check</button>
-      <div id="shortageOut" class="hint" style="white-space:pre-line"></div>
-    </div>
-  </div>
   <div class="panel"><h2>Shipments</h2><div style="max-height:300px;overflow:auto"><table id="shipTbl"><thead><tr><th>Barcode</th><th>Route</th><th>Status</th></tr></thead><tbody></tbody></table></div></div>
 </div>
 
@@ -478,7 +497,7 @@ async function receiveScan(code){
   const s = ships.find(x=>x.barcode===code);
   if(!s){
     beep(false); buzz([80,60,80]); yell('Unknown box');
-    setPrompt('prompt','UNKNOWN BOX', code + ' not in manifest — exceptions pile','var(--red)','bad');
+    camFlash('miss'); setPrompt('prompt','UNKNOWN BOX', code + ' not in manifest — exceptions pile','var(--red)','bad');
     logEvent('unknown_scan', code, null, 'receive');
     return;
   }
@@ -492,7 +511,7 @@ async function receiveScan(code){
   syncFromDB();
   beep(true); buzz(50);
   yell(s.route_name);
-  setPrompt('prompt', s.route_name, s.barcode + ' received', routeColor(s.route_name), 'ok');
+  camFlash('ok'); setPrompt('prompt', s.route_name, s.barcode + ' received', routeColor(s.route_name), 'ok');
   toast(s.route_name, s.barcode + ' ✓ received', routeColor(s.route_name));
   logEvent('received', code, s.route_name, '');
   pushDB();
@@ -536,6 +555,12 @@ async function loadScan(code){
     toast('WRONG TRUCK', s.barcode + ' → ' + s.route_name, '#FF5A4E');
     logEvent('wrong_truck_caught', code, loadDest, 'belongs to ' + s.route_name);
   }
+}
+function camFlash(kind){
+  const w = document.getElementById('camwrap'); if(!w) return;
+  w.classList.remove('hit','miss'); void w.offsetWidth;
+  w.classList.add(kind==='ok'?'hit':'miss');
+  setTimeout(()=>w.classList.remove('hit','miss'), 550);
 }
 function setPrompt(id, main, sub, color, flood){
   const el = $(id);
@@ -658,7 +683,7 @@ $('startCam').onclick = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }, audio:false });
     const v = $('video'); v.srcObject = stream; await v.play();
-    $('camOff').style.display='none';
+    $('camOff').style.display='none'; { const vf=document.getElementById('viewfinder'); if(vf) vf.style.display='block'; }
     try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(e){}
     if(hasDetector){ detector = new BarcodeDetector({formats:['qr_code','code_128','ean_13','ean_8','code_39','upc_a','itf']}); $('decChip').textContent='NATIVE (QR+1D)'; }
     else if(hasZXing){ $('decChip').textContent='ZXing (QR+1D)'; }
@@ -809,6 +834,73 @@ Use empty string for anything you cannot read. Keep every value short.`;
   }
 }
 
+/* ================= handwritten number reader ================= */
+$('aiNumBtn').onclick = () => $('aiNumFile').click();
+$('aiNumFile').addEventListener('change', async e => {
+  if(e.target.files[0]) await readNumber(e.target.files[0]);
+  e.target.value='';
+});
+async function readNumber(file){
+  $('aiResult').style.display='block';
+  $('aiOut').innerHTML='Reading number…';
+  if(!CFG.backend){
+    $('aiOut').innerHTML='<span style="color:var(--red)">Handwritten reading needs the backend URL set in Setup.</span>';
+    return;
+  }
+  try{
+    const b64 = await _downscale(file, 1500);
+    const resp = await fetch(CFG.backend + '/api/read-number', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ imageBase64: b64 })
+    });
+    const r = await resp.json();
+    if(r.error) throw new Error(r.error);
+    const primary = (r.primary||'').trim();
+    const alts = (r.all_numbers||[]).filter(x=>x && x!==primary);
+    let html = `<div>Read number: <b>${primary||'—'}</b>${r.handwritten?' (handwritten: '+r.handwritten+')':''}</div>`;
+    html += `<div style="color:var(--muted)">confidence ${Math.round((r.confidence||0)*100)}%${alts.length?' · alternates: '+alts.join(', '):''}</div>`;
+    $('aiOut').innerHTML = html + '<div style="margin-top:8px">Looking up…</div>';
+    if(!primary){ $('aiOut').innerHTML = html + '<div style="color:var(--red);margin-top:8px">No number read. Try a clearer photo.</div>'; beep(false); return; }
+
+    // Try LionWheel first (via backend), then local manifest, then alternates
+    const tryNumbers = [primary, ...alts];
+    let matched=null, source='';
+    for(const num of tryNumbers){
+      // local manifest match (barcode or order_ref)
+      const local = (DB.shipments||[]).find(s => s.barcode===num.toUpperCase() || (s.order_ref||'')===num);
+      if(local){ matched={route_name:local.route_name, barcode:local.barcode, via:'manifest'}; break; }
+      // LionWheel lookup
+      try{
+        const lw = await fetch(CFG.backend + '/api/lionwheel/find/' + encodeURIComponent(num));
+        const j = await lw.json();
+        if(j.found && j.task){
+          const t=j.task;
+          const city=(t.destination_region_str || t.city || t.region || '').toString().toUpperCase();
+          matched={route_name:city, barcode:(t.barcode||num), via:'lionwheel', task:t}; break;
+        }
+      }catch(e){}
+    }
+
+    if(matched && matched.route_name){
+      html += `<div style="margin-top:10px;color:${routeColor(matched.route_name)};font-weight:700;font-size:16px">→ ${matched.route_name}</div>`;
+      html += `<div style="color:var(--muted)">found via ${matched.via} · ${matched.barcode}</div>`;
+      $('aiOut').innerHTML = html;
+      yell(matched.route_name); beep(true);
+      toast(matched.route_name, matched.barcode + ' (handwritten)', routeColor(matched.route_name));
+      // if it exists locally as pending, receive it
+      const rec = (DB.shipments||[]).find(s=>s.barcode===matched.barcode);
+      if(rec && rec.status==='pending'){ rec.status='received'; rec.received_at=new Date().toISOString(); logEvent('received', matched.barcode, matched.route_name, 'handwritten'); syncFromDB(); pushDB(); }
+      else { logEvent('handwritten_lookup', matched.barcode, matched.route_name, 'via '+matched.via); }
+    } else {
+      $('aiOut').innerHTML = html + '<div style="color:var(--red);margin-top:10px">Number not found in LionWheel or manifest.'+(CFG.backend?'':' (backend not set)')+'</div>';
+      yell('Not found'); beep(false);
+    }
+  }catch(err){
+    $('aiOut').innerHTML = '<span style="color:var(--red)">Error: '+(err.message||err)+'</span>';
+    beep(false);
+  }
+}
+
 /* ================= demo data + box labels ================= */
 const DEMO = [
   ['SC1001','TEL AVIV'],['SC1002','HAIFA'],['SC1003','ASHDOD'],['SC1004','TEL AVIV'],
@@ -841,34 +933,6 @@ $('genShipLabels').onclick = () => {
     $('shipLabelsGrid').appendChild(card);
     new QRCode(card.querySelector('.qr'), {text:s.barcode, width:104, height:104});
   });
-};
-
-/* ================= shortage detection ================= */
-$('checkShortage').onclick = () => {
-  if(!connected){ alert('Connect first.'); return; }
-  const expected = parseInt($('expectCount').value, 10);
-  const received = (DB.shipments||[]).filter(s=>s.status==='received' || s.status==='loaded').length;
-  const pendingList = (DB.shipments||[]).filter(s=>s.status==='pending');
-  const out = $('shortageOut');
-  if(isNaN(expected) || expected<=0){
-    out.style.color='var(--muted)';
-    out.textContent = 'Received so far: ' + received + ' boxes.\n(enter the expected count to check for a shortage)';
-    return;
-  }
-  const missing = expected - received;
-  if(missing <= 0){
-    out.style.color='var(--green)';
-    out.textContent = '✓ Complete — ' + received + ' of ' + expected + ' received. No shortage.';
-    yell('Pallet complete'); beep(true);
-    logEvent('pallet_ok', null, null, received + '/' + expected);
-  } else {
-    out.style.color='var(--red)';
-    const codes = pendingList.slice(0,20).map(s=>s.barcode + ' ('+s.route_name+')').join('\n');
-    out.textContent = '⚠ SHORTAGE: ' + missing + ' box(es) missing.\nReceived ' + received + ' of ' + expected + '.\nStill not scanned:\n' + (codes || '(unknown — expected count exceeds manifest)');
-    yell('Warning. ' + missing + ' boxes missing'); beep(false); buzz([160,80,160,80,160]);
-    toast('SHORTAGE', missing + ' box(es) missing', '#FF5A4E');
-    logEvent('shortage_detected', null, null, missing + ' missing (' + received + '/' + expected + ')');
-  }
 };
 
 /* ================= boot ================= */
