@@ -216,7 +216,7 @@ input,select{border-radius:6px!important}
 
 <header>
   <div class="logo">Sort<span class="mk">Cart</span> <em style="color:var(--muted);font-style:normal;font-weight:600">Pro</span></em></div>
-  <span class="ver">v4.5</span>
+  <span class="ver">v4.6</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
@@ -357,7 +357,10 @@ input,select{border-radius:6px!important}
     </div>
   </div>
   <div class="panel"><h2>Danger zone</h2>
-    <div class="pbody"><button class="ghost small" id="resetDay">Reset all statuses to pending (new day)</button></div>
+    <div class="pbody" style="display:flex;flex-direction:column;gap:8px">
+      <button class="ghost small" id="resetDay">Reset all statuses to pending (new day)</button>
+      <button class="ghost small" id="clearAll" style="border-color:var(--red);color:var(--red)">Clear ALL shipments (start empty)</button>
+    </div>
   </div>
 </div>
 
@@ -808,6 +811,14 @@ $('genLabels').onclick = () => {
     new QRCode(card.querySelector('.qr'), {text:'CAGE:'+r.name, width:110, height:110});
   });
 };
+$('clearAll') && ($('clearAll').onclick = () => {
+  if(!connected){ alert('Connect first.'); return; }
+  if(!confirm('Delete ALL shipments from the database? This empties everything so only live scans appear.')) return;
+  DB.shipments = [];
+  logEvent('cleared_all', null, null, 'shipments wiped');
+  syncFromDB(); pushDB();
+  alert('All shipments cleared. Now the Receive screen only shows boxes you actually scan.');
+});
 $('resetDay').onclick = async () => {
   if(!confirm('Reset ALL shipments to pending?')) return;
   (DB.shipments||[]).forEach(s=>{ s.status='pending'; s.received_at=null; s.loaded_at=null; });
