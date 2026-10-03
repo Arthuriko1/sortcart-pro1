@@ -216,7 +216,7 @@ input,select{border-radius:6px!important}
 
 <header>
   <div class="logo">Sort<span class="mk">Cart</span> <em style="color:var(--muted);font-style:normal;font-weight:600">Pro</span></em></div>
-  <span class="ver">v4.6</span>
+  <span class="ver">v4.7 · puck</span>
   <div class="spacer"></div>
   <span class="conn"><span class="dot" id="connDot"></span><span id="connLbl">NOT CONNECTED</span></span>
 </header>
@@ -657,7 +657,14 @@ async function receiveScan(code){
   if(CFG.backend && lwId){
     fetch(CFG.backend + '/api/lw/settest/' + encodeURIComponent(lwId) + '/6')
       .then(r=>r.json())
-      .then(j=>{ if(j && j.lw_http===200){ toast('LIONWHEEL ✓', s.barcode+' marked received', routeColor(s.route_name)); logEvent('lw_received', code, s.route_name, 'id '+lwId); } })
+      .then(j=>{ if(j && j.lw_http===200){ toast('LIONWHEEL \u2713', s.barcode+' marked received', routeColor(s.route_name)); logEvent('lw_received', code, s.route_name, 'id '+lwId); } })
+      .catch(()=>{});
+  }
+
+  // light the puck for this city (the LED on the cage)
+  if(CFG.backend && s.route_name){
+    fetch(CFG.backend + '/api/puck/light/' + encodeURIComponent(s.route_name), {method:'POST'})
+      .then(()=>{ toast('PUCK \ud83d\udca1', s.route_name + ' lit', routeColor(s.route_name)); })
       .catch(()=>{});
   }
 }
